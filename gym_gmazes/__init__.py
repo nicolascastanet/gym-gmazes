@@ -25,3 +25,10 @@ register(
     id="GMazeGoalDubins-v0",
     entry_point="gym_gmazes.envs:GMazeGoalDubins",
 )
+
+
+print("|    REGISTERING GMazeGoal-v0 from", envpath())
+register(
+    id="GMazeGoal-v0",
+    entry_point="gym_gmazes.envs:GMazeGoal",
+)

@@ -11,7 +11,7 @@ training in a gym-gmazes goal-based environment (GMazeGoalDubins-v0):
 <details><summary>Option 1: pip</summary>
 <p>
 
-    pip install git+https://github.com/perrin-isir/gym-gmazes
+    pip install git+https://github.com/nicolascastanet/gym-gmazes
 
 </p>
 </details>
@@ -19,7 +19,7 @@ training in a gym-gmazes goal-based environment (GMazeGoalDubins-v0):
 <details><summary>Option 2: conda</summary>
 <p>
 
-    git clone https://github.com/perrin-isir/gym-gmazes.git
+    git clone https://github.com/nicolascastanet/gym-gmazes.git
     cd gym-gmazes
 
 Choose a conda environmnent name, for instance `gmazeenv`.  

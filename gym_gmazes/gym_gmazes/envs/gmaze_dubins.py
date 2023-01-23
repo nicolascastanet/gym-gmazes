@@ -440,7 +440,10 @@ class GMazeGoal(GMazeCommon, GoalEnv):
         return  achieved_g(np.random.rand(self.num_envs, 2) * 5.0) # TODO remove hard coded maze shape
 
     def _sample_goal(self):
-        return achieved_g(np.repeat(np.array([[4.5,4.5]]),self.num_envs,axis=0))
+        return achieved_g(np.random.rand(self.num_envs, 2) * 2.0 - 1)
+    
+    #def _sample_goal(self):
+    #    return achieved_g(np.repeat(np.array([[4.5,4.5]]),self.num_envs,axis=0))
 
 
     def set_goal(self, goal):
@@ -490,7 +493,7 @@ class GMazeGoal(GMazeCommon, GoalEnv):
             action = np.asarray(action)
 
         for k in range(self.frame_skip):
-            new_state = (self.state + action*self.action_scale)#.clip(-1,1) # clip to stay in boundaries
+            new_state = (self.state + action*self.action_scale).clip(-1,1) # clip to stay in boundaries
             intersection = np.full((self.num_envs,), False)
             for (w1, w2) in self.walls:
                 intersection = np.logical_or(

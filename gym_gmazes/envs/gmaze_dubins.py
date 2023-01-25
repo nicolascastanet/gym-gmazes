@@ -181,18 +181,30 @@ class GMazeCommon:
         else:
             self.walls = walls
 
+    def sample_grid_uniform_goals(self,d_max=5,d_min=0, nb_sample=10):
+        x = np.linspace(d_min, d_max, d_max+1)
+        y = np.linspace(d_min, d_max, d_max+1)
+        random_goals = []
+
+        for i in range(len(x)-1):
+            for j in range(len(y)-1):
+                data = np.random.uniform(low=[x[i],y[j]], high=[x[i+1],y[j+1]], size=(nb_sample,2))
+                random_goals.append(data)
+
+        G = np.array(random_goals).reshape(-1,2)
+
     def set_state(self, qpos: np.ndarray, qvel: np.ndarray):
         self.state = qpos
 
-    def plot(self, ax):
+    def plot(self, ax, xy_min=-1, xy_max=6):
         lines = []
         rgbs = []
         for w in self.walls:
             lines.append(w)
             rgbs.append((0, 0, 0, 1))
         ax.add_collection(mc.LineCollection(lines, colors=rgbs, linewidths=2))
-        ax.set_xlim([-1, 1])
-        ax.set_ylim([-1, 1])
+        ax.set_xlim([xy_min, xy_max])
+        ax.set_ylim([xy_min, xy_max])
 
 
 def default_reward_fun(action, new_obs):
@@ -258,9 +270,8 @@ def goal_distance(goal_a, goal_b):
 
 
 def default_compute_reward(achieved_goal: np.ndarray, desired_goal: np.ndarray, *args):
-    distance_threshold = 0.1
-    # reward_type = "sparse"
-    reward_type = "dense"
+    distance_threshold = 0.15
+    reward_type="sparse"
     d = goal_distance(achieved_goal, desired_goal)
     if reward_type == "sparse":
         return -1.0 * (d > distance_threshold)
@@ -269,7 +280,7 @@ def default_compute_reward(achieved_goal: np.ndarray, desired_goal: np.ndarray, 
 
 
 def default_success_function(achieved_goal: np.ndarray, desired_goal: np.ndarray):
-    distance_threshold = 0.1
+    distance_threshold = 0.15
     d = goal_distance(achieved_goal, desired_goal)
     return d < distance_threshold
 
@@ -386,28 +397,24 @@ class GMazeGoal(GMazeCommon, GoalEnv):
         super().__init__(num_envs)
 
         self.frame_skip = 1
-        self.init_qpos = np.tile(np.array([0.0, 0.0]), (self.num_envs, 1))
+        self.init_qpos = np.tile(np.array([0.5, 0.5]), (self.num_envs, 1))
         # initial position + orientation
         self._obs_dim = 2
+        self._desired_goal_dim = 2
+        high = np.ones(self._obs_dim)
+        low = -high
+        observation_space = gym.spaces.Box(low, high, (2, ))
+
         self._action_dim = 2
-        self.single_action_space = gym.spaces.Box(-0.95, 0.95, (2, ))
+        self.action_scale = 1
+        self.single_action_space = gym.spaces.Box(-self.action_scale, self.action_scale, (2, ))
         self.action_space = gym.vector.utils.batch_space(
             self.single_action_space, self.num_envs
         )
 
-        self.max_episode_steps = 70
-
-        observation_space = gym.spaces.Box(-np.inf, np.inf, (2, ))
+        self.max_episode_steps = 50
         goal_space = gym.spaces.Box(-np.inf, np.inf, (2, ))
 
-        #high = np.ones(self._obs_dim)
-        #low = -high
-        #self._achieved_goal_dim = 2
-        #self._desired_goal_dim = 2
-        #high_achieved_goal = np.ones(self._achieved_goal_dim)
-        #low_achieved_goal = -high_achieved_goal
-        #high_desired_goal = np.ones(self._desired_goal_dim)
-        #low_desired_goal = -high_desired_goal
         self.single_observation_space = spaces.Dict(
             dict(
                 observation=observation_space,
@@ -429,8 +436,15 @@ class GMazeGoal(GMazeCommon, GoalEnv):
     def set_success_function(self, success_function):
         self._is_success = success_function
 
+    def sample_uniform_goal(self):
+        return  achieved_g(np.random.rand(self.num_envs, 2) * 5.0) # TODO remove hard coded maze shape
+
     def _sample_goal(self):
         return achieved_g(np.random.rand(self.num_envs, 2) * 2.0 - 1)
+    
+    #def _sample_goal(self):
+    #    return achieved_g(np.repeat(np.array([[4.5,4.5]]),self.num_envs,axis=0))
+
 
     def set_goal(self, goal):
         self.goal = (
@@ -479,23 +493,23 @@ class GMazeGoal(GMazeCommon, GoalEnv):
             action = np.asarray(action)
 
         for k in range(self.frame_skip):
-            new_state = self.state + action
+            new_state = (self.state + action*self.action_scale).clip(-1,1) # clip to stay in boundaries
             intersection = np.full((self.num_envs,), False)
             for (w1, w2) in self.walls:
                 intersection = np.logical_or(
                     intersection, intersect(self.state, new_state, w1, w2)
                 )
+
             intersection = np.expand_dims(intersection, axis=-1)
             self.state = self.state * intersection + new_state * np.logical_not(
                 intersection
             )
+
         self.steps += 1
         truncated = np.asarray(
             (self.steps == self.max_episode_steps), dtype=bool
         ).reshape((self.num_envs, 1))
         return action, truncated
-
-
 
 
     def step(self, action: np.ndarray):
@@ -504,6 +518,7 @@ class GMazeGoal(GMazeCommon, GoalEnv):
         reward = self.compute_reward(achieved_g(self.state), self.goal).reshape(
             (self.num_envs, 1)
         )
+
         terminated = self._is_success(achieved_g(self.state), self.goal).reshape(
             (self.num_envs, 1)
         )
@@ -511,7 +526,7 @@ class GMazeGoal(GMazeCommon, GoalEnv):
             "is_success": terminated,
         }
         self.done = np.logical_or(terminated, truncated)
-
+        
         return (
             {
                 "observation": self.state,
@@ -523,3 +538,5 @@ class GMazeGoal(GMazeCommon, GoalEnv):
             truncated,
             info,
         )
+
+
